@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>常用网站导航</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; transition: all 0.28s ease; font-family: "Segoe UI", sans-serif; }
+    body {
+      height: 100vh; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: radial-gradient(circle at top, #111 0%, #000 100%); color: #fff;
+    }
+    body.light { background: radial-gradient(circle at top, #fff 0%, #ddd 100%); color: #111; }
+
+    h1 { font-size: 2.6em; letter-spacing: 2px; text-shadow: 0 0 15px #00ffe1; animation: glow 2s infinite alternate; margin-bottom: 10px; }
+    @keyframes glow { from { text-shadow: 0 0 10px #00ffe1; } to { text-shadow: 0 0 25px #00ffe1; } }
+
+    .author { font-size: 1em; margin-bottom: 40px; opacity: .85; cursor: pointer; }
+    .author:hover { transform: scale(1.05); text-shadow: 0 0 10px #00ffe1; }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 20px;
+      width: 80%;
+      max-width: 720px;
+    }
+
+    .btn {
+      background: #111; border: 2px solid #00ffe1; border-radius: 15px; padding: 15px 22px; text-align: center;
+      font-size: 1.05em; color: #00ffe1; cursor: grab; box-shadow: 0 0 10px #00ffe1 inset;
+      opacity: 0; transform: translateY(30px); position: relative; overflow: hidden;
+      animation: flyIn 0.6s forwards, breathe 3s 0.6s infinite ease-in-out;
+      user-select: none;
+    }
+    @keyframes flyIn { from { opacity: 0; transform: translateY(50px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes breathe { 0%, 100% { box-shadow: 0 0 8px #00ffe1 inset; } 50% { box-shadow: 0 0 20px #00ffe1 inset; } }
+
+    .btn:hover { background: #fff; color: transparent; transform: scale(1.08); box-shadow: 0 0 20px #fff, 0 0 40px #fff; }
+
+    .btn img {
+      position: absolute; width: 26px; height: 26px; top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0); transition: transform .25s ease, opacity .25s ease;
+      opacity: 0; pointer-events: none; z-index: 2;
+    }
+    .btn:hover img { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+
+    .btn span { position: relative; z-index: 1; transition: opacity .18s ease; display: inline-block; }
+    .btn:hover span { opacity: 0; }
+
+    body.light .btn {
+      background: #f7f7f7; border: 2px solid #0077ff; color: #0077ff; box-shadow: 0 0 10px #0077ff22 inset;
+    }
+    body.light .btn:hover {
+      background: #fff; color: transparent; transform: scale(1.08);
+      box-shadow: 0 0 20px #0077ff55, 0 0 40px #0077ff33;
+    }
+
+    .theme-toggle, .auth-toggle {
+      position: absolute; top: 20px; right: 25px;
+      background: transparent; border: 2px solid #00ffe1; color: #00ffe1;
+      padding: 8px 14px; border-radius: 10px; cursor: pointer; font-size: 0.95em;
+    }
+    .theme-toggle { right: 140px; } /* 调整位置，避免重叠 */
+    .theme-toggle:hover, .auth-toggle:hover { background: #00ffe1; color: #111; transform: scale(1.05); }
+    body.light .theme-toggle, body.light .auth-toggle { border: 2px solid #0077ff; color: #0077ff; }
+    body.light .theme-toggle:hover, body.light .auth-toggle:hover { background: #0077ff; color: #fff; }
+
+    canvas {
+      position: fixed;
+      top: 0; left: 0;
+      z-index: -1;
+    }
+
+    .loading-text {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.5em;
+      color: #fff;
+      text-shadow: 0 0 10px #00ffe1;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      z-index: 2000;
+      pointer-events: none;
+    }
+
+    @media (max-width: 480px) { .buttons { gap: 12px; } .btn { padding: 12px; } h1 { font-size: 1.9rem; } }
+  </style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <button class="theme-toggle" onclick="toggleTheme()">🌗 模式切换</button>
+  <button class="auth-toggle" id="authBtn" onclick="handleAuth()">登录 / 登出</button>
+  <h1>常用网站导航</h1>
+  <div class="author" onclick="window.open('https://github.com/GuqiUwU','_blank')">作者：鼓启</div>
+
+  <div class="buttons" id="siteContainer"></div>
+
+  <div class="loading-text" id="loading">加载中</div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    // 替换为你的 Firebase 配置
+    const firebaseConfig = {
+      // apiKey: "YOUR_API_KEY",
+      // authDomain: "YOUR_PROJECT.firebaseapp.com",
+      // projectId: "YOUR_PROJECT_ID",
+      // storageBucket: "YOUR_PROJECT.appspot.com",
+      // messagingSenderId: "123456789",
+      // appId: "YOUR_APP_ID"
+    };
+
+    // 初始化 Firebase
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js';
+    import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js';
+    import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js';
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider(); // 可换成 GitHubProvider 等
+
+    let currentUser = null;
+    const defaultSites = [
+      { name: "Google", url: "https://www.google.com" },
+      { name: "YouTube", url: "https://www.youtube.com" },
+      { name: "Bilibili", url: "https://www.bilibili.com" },
+      { name: "GitHub", url: "https://github.com" },
+      { name: "ChatGPT", url: "https://chat.openai.com" },
+      { name: "SG-MiniRun", url: "https://guqiuwu.github.io/SG-MiniRun" },
+      { name: "Twitch", url: "https://www.twitch.tv" },
+      { name: "X", url: "https://x.com" },
+      { name: "Gmail", url: "https://mail.google.com" },
+      { name: "谷歌翻译", url: "https://translate.google.com" },
+    ];
+
+    const siteContainer = document.getElementById("siteContainer");
+    const authBtn = document.getElementById("authBtn");
+
+    // 监听登录状态
+    onAuthStateChanged(auth, (user) => {
+      currentUser = user;
+      authBtn.textContent = user ? `👋 ${user.displayName || '用户'} (登出)` : '登录 / 登出';
+      loadSites();
+    });
+
+    // 加载站点：优先云端
+    async function loadSites() {
+      let sites = defaultSites;
+      const saved = JSON.parse(localStorage.getItem("sitesOrder") || "null");
+      sites = saved && saved.length ? saved : sites;
+
+      if (currentUser) {
+        try {
+          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          if (userDoc.exists()) {
+            sites = userDoc.data().sitesOrder || sites;
+          }
+        } catch (error) {
+          console.error("加载云端数据失败:", error);
+        }
+      }
+
+      renderSites(sites);
+    }
+
+    function renderSites(sitesToRender) {
+      siteContainer.innerHTML = "";
+      sitesToRender.forEach((site, i) => {
+        const div = document.createElement("div");
+        div.className = "btn";
+        div.style.animationDelay = `${0.1 + i * 0.15}s`;
+        div.innerHTML = `<span>${site.name}</span>
+          <img src="https://icons.duckduckgo.com/ip3/${new URL(site.url).hostname}.ico" alt="${site.name}">
+        `;
+        div.onclick = () => go(site.url);
+        siteContainer.appendChild(div);
+      });
+    }
+
+    // 保存站点：云端或本地
+    async function saveSites(newOrder) {
+      if (currentUser) {
+        try {
+          await setDoc(doc(db, "users", currentUser.uid), { sitesOrder: newOrder }, { merge: true });
+        } catch (error) {
+          console.error("保存云端数据失败:", error);
+          localStorage.setItem("sitesOrder", JSON.stringify(newOrder)); // fallback
+        }
+      } else {
+        localStorage.setItem("sitesOrder", JSON.stringify(newOrder));
+      }
+    }
+
+    // 拖拽排序 + 保存
+    import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js';
+    new Sortable(siteContainer, {
+      animation: 200,
+      ghostClass: 'dragging',
+      onEnd: function () {
+        const newOrder = [];
+        siteContainer.querySelectorAll(".btn span").forEach(el => {
+          const name = el.textContent;
+          const site = defaultSites.find(s => s.name === name); // 用 defaultSites 匹配完整对象
+          if (site) newOrder.push(site);
+        });
+        saveSites(newOrder);
+      }
+    });
+
+    // 认证处理
+    async function handleAuth() {
+      if (currentUser) {
+        await signOut(auth);
+      } else {
+        try {
+          await signInWithPopup(auth, provider);
+        } catch (error) {
+          console.error("登录失败:", error);
+          alert("登录失败，请重试！");
+        }
+      }
+    }
+
+    // 原 go 函数（不变）
+    async function go(url) {
+      const startTime = Date.now();
+      const testImg = new Image();
+      const loadingText = document.getElementById('loading');
+
+      let estimated = document.createElement('div');
+      estimated.style.cssText = `
+        position: fixed; top: calc(50% + 40px); left: 50%;
+        transform: translate(-50%, -50%); font-size: 1em; color: #aaa;
+        text-shadow: 0 0 6px #00ffe1; opacity: 0; transition: opacity 0.4s ease;
+        z-index: 2001;
+      `;
+      document.body.appendChild(estimated);
+
+      let duration = 2200;
+      const testPromise = new Promise((resolve) => {
+        testImg.onload = () => resolve(Date.now() - startTime);
+        testImg.onerror = () => resolve(9999);
+        testImg.src = url + '/favicon.ico?t=' + Math.random();
+      });
+
+      const loadTime = await testPromise;
+      if (loadTime < 400) duration = 1000;
+      else if (loadTime < 1200) duration = 1800;
+      else duration = 2800;
+
+      const overlay = document.createElement('div');
+      overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(to bottom, #001f3f 0%, #0074D9 30%, #7FDBFF 70%, #B3E5FC 100%);
+        z-index: 1000; clip-path: polygon(100% 0%, 100% 100%, 100% 100%, 100% 0%);
+      `;
+      document.body.appendChild(overlay);
+
+      const startAnim = Date.now();
+      const waveCount = 3, amplitude = 10, points = 60;
+
+      function animateWave() {
+        const elapsed = Date.now() - startAnim;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const baseX = 100 - 200 * eased;
+        const wavePoints = [];
+        for (let i = 0; i <= points; i++) {
+          const yPercent = (i / points) * 100;
+          const waveOffset = Math.sin((i / points) * Math.PI * waveCount) * amplitude;
+          const xPercent = Math.min(100, Math.max(-100, baseX + waveOffset));
+          wavePoints.push(`${xPercent}% ${yPercent}%`);
+        }
+        overlay.style.clipPath = `polygon(${wavePoints.join(',')}, 100% 100%, 100% 0%)`;
+
+        if (progress < 1) requestAnimationFrame(animateWave);
+        else {
+          loadingText.style.opacity = '1';
+          estimated.style.opacity = '1';
+          let dotCount = 0;
+          let secondsLeft = Math.max(1, Math.ceil(duration / 1000));
+          const dotTimer = setInterval(() => {
+            dotCount = (dotCount + 1) % 4;
+            loadingText.textContent = '加载中' + '.'.repeat(dotCount);
+          }, 400);
+          const timeTimer = setInterval(() => {
+            estimated.textContent = `预计 ${secondsLeft--} 秒到达`;
+            if (secondsLeft < 0) clearInterval(timeTimer);
+          }, 1000);
+          setTimeout(() => {
+            clearInterval(dotTimer);
+            clearInterval(timeTimer);
+            location.href = url;
+          }, duration + 800);
+        }
+      }
+      requestAnimationFrame(animateWave);
+    }
+
+    // 原主题切换（不变）
+    function toggleTheme() {
+      document.body.classList.toggle("light");
+      localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+    }
+    if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
+
+    // 原背景粒子动画（不变）
+    const canvas = document.getElementById('bg');
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let mouse = { x: null, y: null, radius: 120 };
+    let color = '#00ffe1';
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; initParticles(); }
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('mousemove', e => { mouse.x = e.x; mouse.y = e.y; });
+    class Particle {
+      constructor(x, y, size, speedX, speedY) {
+        this.x = x; this.y = y; this.size = size;
+        this.speedX = speedX; this.speedY = speedY;
+      }
+      update() {
+        this.x += this.speedX; this.y += this.speedY;
+        if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+        let dx = this.x - mouse.x, dy = this.y - mouse.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < mouse.radius) { this.x += dx / dist * 1.5; this.y += dy / dist * 1.5; }
+      }
+      draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); }
+    }
+    function initParticles() {
+      particles = [];
+      let count = (canvas.width * canvas.height) / 16000;
+      for (let i = 0; i < count; i++) {
+        let x = Math.random() * canvas.width;
+        let y = Math.random() * canvas.height;
+        let size = Math.random() * 2 + 0.6;
+        let speedX = (Math.random() - 0.5) * 0.8;
+        let speedY = (Math.random() - 0.5) * 0.8;
+        particles.push(new Particle(x, y, size, speedX, speedY));
+      }
+    }
+    function connectParticles() {
+      for (let a = 0; a < particles.length; a++) {
+        for (let b = a; b < particles.length; b++) {
+          let dx = particles[a].x - particles[b].x;
+          let dy = particles[a].y - particles[b].y;
+          let distance = dx * dx + dy * dy;
+          if (distance < 12000) {
+            ctx.beginPath();
+            ctx.strokeStyle = color + '33';
+            ctx.lineWidth = 1;
+            ctx.moveTo(particles[a].x, particles[a].y);
+            ctx.lineTo(particles[b].x, particles[b].y);
+            ctx.stroke();
+            ctx.closePath();
+          }
+        }
+      }
+    }
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => { p.update(); p.draw(); });
+      connectParticles();
+      requestAnimationFrame(animate);
+    }
+    resizeCanvas();
+    animate();
+
+    // 初始加载
+    loadSites();
+  </script>
+</body>
+</html>
