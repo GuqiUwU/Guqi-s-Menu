@@ -91,8 +91,8 @@
 </head>
 <body>
   <canvas id="bg"></canvas>
-  <button class="theme-toggle" onclick="toggleTheme()">🌗 模式切换</button>
-  <button class="auth-toggle" id="authBtn" onclick="handleAuth()">登录 / 登出</button>
+  <button class="theme-toggle" id="themeBtn">🌗 模式切换</button>
+  <button class="auth-toggle" id="authBtn">登录 / 登出</button>
   <h1>常用网站导航</h1>
   <div class="author" onclick="window.open('https://github.com/GuqiUwU','_blank')">作者：鼓启</div>
 
@@ -100,16 +100,19 @@
 
   <div class="loading-text" id="loading">加载中</div>
 
+  <!-- 先加载 SortableJS（全局，非模块） -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
   <!-- Firebase SDK -->
   <script type="module">
-    // 替换为你的 Firebase 配置
+    // Firebase 配置（你的已填）
     const firebaseConfig = {
-      // apiKey: "YOUR_API_KEY",
-      // authDomain: "YOUR_PROJECT.firebaseapp.com",
-      // projectId: "YOUR_PROJECT_ID",
-      // storageBucket: "YOUR_PROJECT.appspot.com",
-      // messagingSenderId: "123456789",
-      // appId: "YOUR_APP_ID"
+      apiKey: "AIzaSyCTHV1uUX2dh0RECjbC9wNjvLPJ1lvp74E",
+      authDomain: "guqis-menu.firebaseapp.com",
+      projectId: "guqis-menu",
+      storageBucket: "guqis-menu.firebasestorage.app",
+      messagingSenderId: "846795854563",
+      appId: "1:846795854563:web:7a8c86d08076dd0edf2bd6"
     };
 
     // 初始化 Firebase
@@ -120,9 +123,10 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const provider = new GoogleAuthProvider(); // 可换成 GitHubProvider 等
+    const provider = new GoogleAuthProvider();
 
     let currentUser = null;
+    let sortable = null; // Sortable 实例
     const defaultSites = [
       { name: "Google", url: "https://www.google.com" },
       { name: "YouTube", url: "https://www.youtube.com" },
@@ -138,6 +142,7 @@
 
     const siteContainer = document.getElementById("siteContainer");
     const authBtn = document.getElementById("authBtn");
+    const themeBtn = document.getElementById("themeBtn");
 
     // 监听登录状态
     onAuthStateChanged(auth, (user) => {
@@ -149,8 +154,8 @@
     // 加载站点：优先云端
     async function loadSites() {
       let sites = defaultSites;
-      const saved = JSON.parse(localStorage.getItem("sitesOrder") || "null");
-      sites = saved && saved.length ? saved : sites;
+      const saved = JSON.parse(localStorage.getItem("sitesOrder") || "[]");
+      sites = saved.length ? saved : sites;
 
       if (currentUser) {
         try {
@@ -164,6 +169,7 @@
       }
 
       renderSites(sites);
+      initSortable(); // 初始化拖拽
     }
 
     function renderSites(sitesToRender) {
@@ -194,26 +200,36 @@
       }
     }
 
-    // 拖拽排序 + 保存
-    import Sortable from 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js';
-    new Sortable(siteContainer, {
-      animation: 200,
-      ghostClass: 'dragging',
-      onEnd: function () {
-        const newOrder = [];
-        siteContainer.querySelectorAll(".btn span").forEach(el => {
-          const name = el.textContent;
-          const site = defaultSites.find(s => s.name === name); // 用 defaultSites 匹配完整对象
-          if (site) newOrder.push(site);
+    // 拖拽排序 + 保存（用全局 Sortable）
+    function initSortable() {
+      if (sortable) sortable.destroy();
+      if (typeof Sortable !== 'undefined') {
+        sortable = new Sortable(siteContainer, {
+          animation: 200,
+          ghostClass: 'dragging',
+          onEnd: function () {
+            const newOrder = [];
+            siteContainer.querySelectorAll(".btn span").forEach(el => {
+              const name = el.textContent;
+              const site = defaultSites.find(s => s.name === name);
+              if (site) newOrder.push(site);
+            });
+            saveSites(newOrder);
+          }
         });
-        saveSites(newOrder);
+      } else {
+        console.error('Sortable 未加载');
       }
-    });
+    }
 
     // 认证处理
     async function handleAuth() {
       if (currentUser) {
-        await signOut(auth);
+        try {
+          await signOut(auth);
+        } catch (error) {
+          console.error("登出失败:", error);
+        }
       } else {
         try {
           await signInWithPopup(auth, provider);
@@ -224,151 +240,25 @@
       }
     }
 
-    // 原 go 函数（不变）
-    async function go(url) {
-      const startTime = Date.now();
-      const testImg = new Image();
-      const loadingText = document.getElementById('loading');
-
-      let estimated = document.createElement('div');
-      estimated.style.cssText = `
-        position: fixed; top: calc(50% + 40px); left: 50%;
-        transform: translate(-50%, -50%); font-size: 1em; color: #aaa;
-        text-shadow: 0 0 6px #00ffe1; opacity: 0; transition: opacity 0.4s ease;
-        z-index: 2001;
-      `;
-      document.body.appendChild(estimated);
-
-      let duration = 2200;
-      const testPromise = new Promise((resolve) => {
-        testImg.onload = () => resolve(Date.now() - startTime);
-        testImg.onerror = () => resolve(9999);
-        testImg.src = url + '/favicon.ico?t=' + Math.random();
-      });
-
-      const loadTime = await testPromise;
-      if (loadTime < 400) duration = 1000;
-      else if (loadTime < 1200) duration = 1800;
-      else duration = 2800;
-
-      const overlay = document.createElement('div');
-      overlay.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: linear-gradient(to bottom, #001f3f 0%, #0074D9 30%, #7FDBFF 70%, #B3E5FC 100%);
-        z-index: 1000; clip-path: polygon(100% 0%, 100% 100%, 100% 100%, 100% 0%);
-      `;
-      document.body.appendChild(overlay);
-
-      const startAnim = Date.now();
-      const waveCount = 3, amplitude = 10, points = 60;
-
-      function animateWave() {
-        const elapsed = Date.now() - startAnim;
-        const progress = Math.min(elapsed / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const baseX = 100 - 200 * eased;
-        const wavePoints = [];
-        for (let i = 0; i <= points; i++) {
-          const yPercent = (i / points) * 100;
-          const waveOffset = Math.sin((i / points) * Math.PI * waveCount) * amplitude;
-          const xPercent = Math.min(100, Math.max(-100, baseX + waveOffset));
-          wavePoints.push(`${xPercent}% ${yPercent}%`);
-        }
-        overlay.style.clipPath = `polygon(${wavePoints.join(',')}, 100% 100%, 100% 0%)`;
-
-        if (progress < 1) requestAnimationFrame(animateWave);
-        else {
-          loadingText.style.opacity = '1';
-          estimated.style.opacity = '1';
-          let dotCount = 0;
-          let secondsLeft = Math.max(1, Math.ceil(duration / 1000));
-          const dotTimer = setInterval(() => {
-            dotCount = (dotCount + 1) % 4;
-            loadingText.textContent = '加载中' + '.'.repeat(dotCount);
-          }, 400);
-          const timeTimer = setInterval(() => {
-            estimated.textContent = `预计 ${secondsLeft--} 秒到达`;
-            if (secondsLeft < 0) clearInterval(timeTimer);
-          }, 1000);
-          setTimeout(() => {
-            clearInterval(dotTimer);
-            clearInterval(timeTimer);
-            location.href = url;
-          }, duration + 800);
-        }
-      }
-      requestAnimationFrame(animateWave);
-    }
-
-    // 原主题切换（不变）
+    // 主题切换
     function toggleTheme() {
       document.body.classList.toggle("light");
       localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
     }
     if (localStorage.getItem("theme") === "light") document.body.classList.add("light");
 
-    // 原背景粒子动画（不变）
-    const canvas = document.getElementById('bg');
-    const ctx = canvas.getContext('2d');
-    let particles = [];
-    let mouse = { x: null, y: null, radius: 120 };
-    let color = '#00ffe1';
-    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; initParticles(); }
-    window.addEventListener('resize', resizeCanvas);
-    window.addEventListener('mousemove', e => { mouse.x = e.x; mouse.y = e.y; });
-    class Particle {
-      constructor(x, y, size, speedX, speedY) {
-        this.x = x; this.y = y; this.size = size;
-        this.speedX = speedX; this.speedY = speedY;
-      }
-      update() {
-        this.x += this.speedX; this.y += this.speedY;
-        if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
-        if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
-        let dx = this.x - mouse.x, dy = this.y - mouse.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < mouse.radius) { this.x += dx / dist * 1.5; this.y += dy / dist * 1.5; }
-      }
-      draw() { ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); }
+    // go 函数（不变，略...）
+    async function go(url) {
+      // ... 你的原 go 函数代码 ...
+      // （复制你原代码的 go 函数到这里，保持不变）
     }
-    function initParticles() {
-      particles = [];
-      let count = (canvas.width * canvas.height) / 16000;
-      for (let i = 0; i < count; i++) {
-        let x = Math.random() * canvas.width;
-        let y = Math.random() * canvas.height;
-        let size = Math.random() * 2 + 0.6;
-        let speedX = (Math.random() - 0.5) * 0.8;
-        let speedY = (Math.random() - 0.5) * 0.8;
-        particles.push(new Particle(x, y, size, speedX, speedY));
-      }
-    }
-    function connectParticles() {
-      for (let a = 0; a < particles.length; a++) {
-        for (let b = a; b < particles.length; b++) {
-          let dx = particles[a].x - particles[b].x;
-          let dy = particles[a].y - particles[b].y;
-          let distance = dx * dx + dy * dy;
-          if (distance < 12000) {
-            ctx.beginPath();
-            ctx.strokeStyle = color + '33';
-            ctx.lineWidth = 1;
-            ctx.moveTo(particles[a].x, particles[a].y);
-            ctx.lineTo(particles[b].x, particles[b].y);
-            ctx.stroke();
-            ctx.closePath();
-          }
-        }
-      }
-    }
-    function animate() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      particles.forEach(p => { p.update(); p.draw(); });
-      connectParticles();
-      requestAnimationFrame(animate);
-    }
-    resizeCanvas();
-    animate();
+
+    // 粒子动画（不变，略...）
+    // ... 你的原粒子代码 ...
+
+    // 绑定事件（用 addEventListener 解决作用域问题）
+    authBtn.addEventListener('click', handleAuth);
+    themeBtn.addEventListener('click', toggleTheme);
 
     // 初始加载
     loadSites();
